@@ -14,5 +14,5 @@ https://trello.com/c/ux4akqBq/3-contaspara-misurazione-consumi-ottimizzazione-fo
 
 
 ## Team:
-Gianpaolo Missiroli
-Ivan Tarozzi  
+* Gianpaolo Missiroli (GpMissi)
+* Ivan Tarozzi  (itarozzi)
