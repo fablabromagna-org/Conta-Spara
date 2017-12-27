@@ -133,6 +133,10 @@ void setup()
   delay(1000);
   Serial1.begin(19200);
   delay(1000);
+
+
+
+  //=== Inizializzo il WiFi ===  
   setup_wifi();
 
 
@@ -157,6 +161,14 @@ void setup()
     mbus_node[i].postTransmission(postTransmission);
   }
 
+
+  // @@@@ DEBUG : disabilito temporaneamente i misuratori assenti
+  misuratori[2].setEnabled(false);
+  misuratori[3].setEnabled(false);
+  misuratori[4].setEnabled(false);
+  misuratori[5].setEnabled(false);
+  misuratori[6].setEnabled(false);  
+
 }
 
 
@@ -176,11 +188,11 @@ void loop()
   
   if ( (millis()- polling_time_prev) > POLLING_TIME) {
    
-    Serial1.print(" Polling Misuratore:  ");
-    Serial1.println(mis_idx);
     
     //=== Ad ogni loop interrogo solo un misuratore, in modo da non bloccare per troppo tempo il programma ===
     if (misuratori[mis_idx].isEnabled()) {  
+      Serial1.print(" Polling Misuratore:  ");
+      Serial1.println(mis_idx);
 
       // Read 16 registers starting at 30001)
       result = mbus_node[mis_idx].readInputRegisters(0x00, 16 );
@@ -199,6 +211,10 @@ void loop()
         active_power = 0;
       }
 
+      Serial1.println("Tensione, Corrente, Potenza");
+      Serial1.println(volts);
+      Serial1.println(current);
+      Serial1.println(active_power);
       misuratori[mis_idx].setValues(volts, current, active_power);
       
       // pubblica i valori via MQTT
@@ -206,6 +222,15 @@ void loop()
       itoa((misuratori[mis_idx].getStatus() == STATUS_OK)?0:1,  val, 10 );
       sprintf(str_topic, "%s%s%s", mqtt_topic_base, mqtt_topic_misuratore[mis_idx], mqtt_topic_stato);
       mqtt_client.publish(str_topic , val);
+
+      // TODO: trovare un modo migliore per costruire e json e convertire i float
+      char val_json[128];
+      sprintf(val_json,"{\"tens\":%s,\"curr\":%s,\"apower\":%s}", String(volts).c_str(), String(current).c_str(), String(active_power).c_str());
+      sprintf(str_topic, "%s%s%s", mqtt_topic_base, mqtt_topic_misuratore[mis_idx], "/misure");
+      mqtt_client.publish(str_topic , val_json);
+
+
+      
     }  
 
     // incremento il contatore del misuratore da interrogare
@@ -311,6 +336,7 @@ void preTransmission()
 
 void postTransmission()
 {
+  delay(10);
   digitalWrite(MAX485_RE_NEG, 0);
   digitalWrite(MAX485_DE, 0);
 }
