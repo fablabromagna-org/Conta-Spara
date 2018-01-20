@@ -17,44 +17,31 @@
 
   {base}/misuratori/
             generale/
+                  misure
                   abilitato     // 0/1
-                  stato         // 0:OK, 1:no_comm
-                  tensione      // volts
-                  corrente      // ampere
-                  potenza       // Watt
-                  ...
 
             servizi/
+                  misure
                   abilitato
-                  stato
-                  tensione
-                  corrente
-                  potenza
-                  ...
 
             appartamento1/
+                  misure
                   abilitato
-                  stato
-                  tensione
-                  corrente
-                  potenza
-                  ...
 
             appartamento2/
+                  misure
                   abilitato
-                  stato
-                  tensione
-                  corrente
-                  potenza
-                  ...
 
             appartamento5/
+                  misure
                   abilitato
-                  stato
-                  tensione
-                  corrente
-                  potenza
-                  ...
+
+
+  Il topic "misure" contiene i singoli valori ricavati dai misuratori, in formato JSON:
+          - status
+          - tens
+          - curr
+          - apower
 */
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
@@ -113,10 +100,7 @@ const char* mqtt_topic_misuratore[MODBUS_NR_DEVICES] = {
 };
 
 const char* mqtt_topic_abilitato = "/abilitato";
-const char* mqtt_topic_stato = "/stato";
-const char* mqtt_topic_tensione = "/tensione";
-const char* mqtt_topic_corrente = "/corrente";
-const char* mqtt_topic_potenza = "/potenza";
+const char* mqtt_topic_misure = "/misure";
 
 WiFiClient espClient;
 PubSubClient mqtt_client(espClient);
@@ -134,11 +118,8 @@ void setup()
   Serial1.begin(19200);
   delay(1000);
 
-
-
   //=== Inizializzo il WiFi ===
   setup_wifi();
-
 
   mqtt_client.setServer(MQTT_SERVER, MQTT_SERVERPORT);
   mqtt_client.setCallback(mqtt_callback);
@@ -163,6 +144,7 @@ void setup()
 
 
   // @@@@ DEBUG : disabilito temporaneamente i misuratori assenti
+  // questa cosa, in produzione, andra' fatta da mqtt
   misuratori[1].setEnabled(false);
   misuratori[2].setEnabled(false);
   misuratori[3].setEnabled(false);
@@ -220,18 +202,20 @@ void loop()
 
       // pubblica i valori via MQTT
       char str_topic[128];
-      itoa((misuratori[mis_idx].getStatus() == STATUS_OK) ? 0 : 1,  val, 10 );
-      sprintf(str_topic, "%s%s%s", mqtt_topic_base, mqtt_topic_misuratore[mis_idx], mqtt_topic_stato);
-      mqtt_client.publish(str_topic , val);
+//      itoa((misuratori[mis_idx].getStatus() == STATUS_OK) ? 0 : 1,  val, 10 );
+//      sprintf(str_topic, "%s%s%s", mqtt_topic_base, mqtt_topic_misuratore[mis_idx], mqtt_topic_stato);
+//      mqtt_client.publish(str_topic , val);
 
       // TODO: trovare un modo migliore per costruire e json e convertire i float
       char val_json[128];
-      sprintf(val_json, "{\"tens\":%s,\"curr\":%s,\"apower\":%s}", String(volts).c_str(), String(current).c_str(), String(active_power).c_str());
-      sprintf(str_topic, "%s%s%s", mqtt_topic_base, mqtt_topic_misuratore[mis_idx], "/misure");
+      int status = (misuratori[mis_idx].getStatus() == STATUS_OK) ? 0 : 1;
+      sprintf(val_json, "{\"status\":%d \"tens\":%s,\"curr\":%s,\"apower\":%s}", 
+                            String(status).c_str(), 
+                            String(volts).c_str(), 
+                            String(current).c_str(), 
+                            String(active_power).c_str());
+      sprintf(str_topic, "%s%s%s", mqtt_topic_base, mqtt_topic_misuratore[mis_idx], mqtt_topic_misure);
       mqtt_client.publish(str_topic , val_json);
-
-
-
     }
 
     // incremento il contatore del misuratore da interrogare
@@ -247,7 +231,9 @@ void loop()
   delay(100);
 }
 
-
+// -----------------------------------------------------------------
+// Connessione alla rete WiFi
+// -----------------------------------------------------------------
 void setup_wifi() {
   Serial1.println(); Serial1.println();
   Serial1.print("Connecting to ");
@@ -267,7 +253,9 @@ void setup_wifi() {
 }
 
 
-
+// -----------------------------------------------------------------
+// Connessione al broker mqtt
+// -----------------------------------------------------------------
 void mqtt_connect() {
   // Loop until we're reconnected
   while (!mqtt_client.connected()) {
@@ -296,7 +284,9 @@ void mqtt_connect() {
   }
 }
 
-
+// -----------------------------------------------------------------
+// Funzione di callback chiamata quando ricevo dati dal broker mqtt
+// -----------------------------------------------------------------
 void mqtt_callback(char* topic, byte* payload, unsigned int length) {
   Serial1.print("Message arrived [");
   Serial1.print(topic);
@@ -320,6 +310,9 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
   }
 }
 
+// -------------------------------------------------------------
+// Funzioni di conversione per valori Modbus, da Word a Float
+// -------------------------------------------------------------
 union Pun {
   float f;
   uint32_t u;
@@ -332,6 +325,11 @@ float decodeFloat(const uint16_t reg0, uint16_t reg1)
   return pun.f;
 }
 
+
+// -------------------------------------------------------------
+// Pilotaggio dei pin di controllo del convertitore RS485
+// Servono a commutare la linea 485 da trasmissione a ricezione
+// -------------------------------------------------------------
 void preTransmission()
 {
   digitalWrite(MAX485_RE_NEG, 1);
