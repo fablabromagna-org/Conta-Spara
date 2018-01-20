@@ -1,15 +1,15 @@
 /*
 
-  SDM230_RS485_master_esp8266.ino 
+  SDM230_RS485_master_esp8266.ino
   ===============================
-  
+
   Interrogazione dei misuratori SDM230 via ModBus e scrittura topic MQTT
 
   Device ESP8266 - NodeMCU ESP12 V2
 
   Il debug viene eseguito attraverso la Serial1, collegata al pin GPIO2
 
-  
+
   Vengono interrogati 7 misuratori SDM230, con indirizzi modbus contigui da 1 a 7
 
   I risultati delle letture vengono messi in una serie di topic MQTT organizzati
@@ -23,17 +23,17 @@
                   corrente      // ampere
                   potenza       // Watt
                   ...
-            
+
             servizi/
-                  abilitato     
+                  abilitato
                   stato
-                  tensione    
-                  corrente    
+                  tensione
+                  corrente
                   potenza
                   ...
 
             appartamento1/
-                  abilitato     
+                  abilitato
                   stato
                   tensione
                   corrente
@@ -41,7 +41,7 @@
                   ...
 
             appartamento2/
-                  abilitato     
+                  abilitato
                   stato
                   tensione
                   corrente
@@ -49,7 +49,7 @@
                   ...
 
             appartamento5/
-                  abilitato     
+                  abilitato
                   stato
                   tensione
                   corrente
@@ -89,13 +89,13 @@ PowerMeter misuratori[NR_MISURATORI];
   Rx/Tx is hooked up to the hardware serial port at 'Serial'.
   The Data Enable and Receiver Enable pins are hooked up as follows:
 */
-#define MAX485_DE      13
-#define MAX485_RE_NEG  15
+#define MAX485_DE      12
+#define MAX485_RE_NEG  14
 
-#define POLLING_TIME 5000
+#define POLLING_TIME 2000
 
 
-// Istanze degli oggetti ModbusMaster 
+// Istanze degli oggetti ModbusMaster
 #define MODBUS_NR_DEVICES NR_MISURATORI
 ModbusMaster mbus_node[MODBUS_NR_DEVICES];
 
@@ -110,20 +110,20 @@ const char* mqtt_topic_misuratore[MODBUS_NR_DEVICES] = {
   "/appartamento3",
   "/appartamento4",
   "/appartamento5"
-  }; 
-  
-const char* mqtt_topic_abilitato = "/abilitato"; 
-const char* mqtt_topic_stato = "/stato"; 
-const char* mqtt_topic_tensione = "/tensione"; 
-const char* mqtt_topic_corrente = "/corrente"; 
-const char* mqtt_topic_potenza = "/potenza"; 
+};
+
+const char* mqtt_topic_abilitato = "/abilitato";
+const char* mqtt_topic_stato = "/stato";
+const char* mqtt_topic_tensione = "/tensione";
+const char* mqtt_topic_corrente = "/corrente";
+const char* mqtt_topic_potenza = "/potenza";
 
 WiFiClient espClient;
 PubSubClient mqtt_client(espClient);
 char val[50];
 
 bool state = true;
-u32 polling_time_prev =0;
+u32 polling_time_prev = 0;
 int mis_idx = 0;
 
 
@@ -136,13 +136,13 @@ void setup()
 
 
 
-  //=== Inizializzo il WiFi ===  
+  //=== Inizializzo il WiFi ===
   setup_wifi();
 
 
   mqtt_client.setServer(MQTT_SERVER, MQTT_SERVERPORT);
   mqtt_client.setCallback(mqtt_callback);
-  
+
   pinMode(MAX485_RE_NEG, OUTPUT);
   pinMode(MAX485_DE, OUTPUT);
   // Init in receive mode
@@ -152,22 +152,23 @@ void setup()
 
   // Modbus communication runs at 2400 baud
   Serial.begin(2400, SERIAL_8N2);
- 
-  
+
+
   // Callbacks allow us to configure the RS485 transceiver correctly
-  for (int i=0; i<MODBUS_NR_DEVICES; i++) {
-    mbus_node[i].begin(i+1, Serial);
+  for (int i = 0; i < MODBUS_NR_DEVICES; i++) {
+    mbus_node[i].begin(i + 1, Serial);
     mbus_node[i].preTransmission(preTransmission);
     mbus_node[i].postTransmission(postTransmission);
   }
 
 
   // @@@@ DEBUG : disabilito temporaneamente i misuratori assenti
+  misuratori[1].setEnabled(false);
   misuratori[2].setEnabled(false);
   misuratori[3].setEnabled(false);
   misuratori[4].setEnabled(false);
   misuratori[5].setEnabled(false);
-  misuratori[6].setEnabled(false);  
+  misuratori[6].setEnabled(false);
 
 }
 
@@ -176,21 +177,21 @@ void loop()
 {
   uint8_t result;
   int mb_status = 0;
-  float volts; 
+  float volts;
   float current;
   float active_power;
 
- //  //=== Ad ogni loop controlla che il collegamento al broker mqtt sia ok ===
+  //  //=== Ad ogni loop controlla che il collegamento al broker mqtt sia ok ===
   if (!mqtt_client.connected()) {
     mqtt_connect();
   }
   mqtt_client.loop();   // processa eventiali callback
-  
-  if ( (millis()- polling_time_prev) > POLLING_TIME) {
-   
-    
+
+  if ( (millis() - polling_time_prev) > POLLING_TIME) {
+
+
     //=== Ad ogni loop interrogo solo un misuratore, in modo da non bloccare per troppo tempo il programma ===
-    if (misuratori[mis_idx].isEnabled()) {  
+    if (misuratori[mis_idx].isEnabled()) {
       Serial1.print(" Polling Misuratore:  ");
       Serial1.println(mis_idx);
 
@@ -202,7 +203,7 @@ void loop()
         volts = decodeFloat(mbus_node[mis_idx].getResponseBuffer(0x00),  mbus_node[mis_idx].getResponseBuffer(0x01));
         current = decodeFloat(mbus_node[mis_idx].getResponseBuffer(0x06),  mbus_node[mis_idx].getResponseBuffer(0x07));
         active_power = decodeFloat(mbus_node[mis_idx].getResponseBuffer(0x0c),  mbus_node[mis_idx].getResponseBuffer(0x0d));
-        
+
       }
       else {
         misuratori[mis_idx].setStatus(STATUS_COM_ERROR);
@@ -216,26 +217,26 @@ void loop()
       Serial1.println(current);
       Serial1.println(active_power);
       misuratori[mis_idx].setValues(volts, current, active_power);
-      
+
       // pubblica i valori via MQTT
       char str_topic[128];
-      itoa((misuratori[mis_idx].getStatus() == STATUS_OK)?0:1,  val, 10 );
+      itoa((misuratori[mis_idx].getStatus() == STATUS_OK) ? 0 : 1,  val, 10 );
       sprintf(str_topic, "%s%s%s", mqtt_topic_base, mqtt_topic_misuratore[mis_idx], mqtt_topic_stato);
       mqtt_client.publish(str_topic , val);
 
       // TODO: trovare un modo migliore per costruire e json e convertire i float
       char val_json[128];
-      sprintf(val_json,"{\"tens\":%s,\"curr\":%s,\"apower\":%s}", String(volts).c_str(), String(current).c_str(), String(active_power).c_str());
+      sprintf(val_json, "{\"tens\":%s,\"curr\":%s,\"apower\":%s}", String(volts).c_str(), String(current).c_str(), String(active_power).c_str());
       sprintf(str_topic, "%s%s%s", mqtt_topic_base, mqtt_topic_misuratore[mis_idx], "/misure");
       mqtt_client.publish(str_topic , val_json);
 
 
-      
-    }  
+
+    }
 
     // incremento il contatore del misuratore da interrogare
     if (mis_idx < NR_MISURATORI) {
-      mis_idx++;  
+      mis_idx++;
     }
     else {
       mis_idx = 0;
@@ -278,13 +279,13 @@ void mqtt_connect() {
 
       //===  resubscribe ===
       String str_topic;
-      for (int mis_idx=0; mis_idx < NR_MISURATORI; mis_idx++) {
+      for (int mis_idx = 0; mis_idx < NR_MISURATORI; mis_idx++) {
         str_topic = String(mqtt_topic_base) + String(mqtt_topic_misuratore[mis_idx]) + String(mqtt_topic_abilitato) ;
         mqtt_client.subscribe(str_topic.c_str());
         Serial1.print("Subscribe: ");
         Serial1.println(str_topic.c_str());
       }
-      
+
     } else {
       Serial1.print("failed, rc=");
       Serial1.print(mqtt_client.state());
@@ -303,12 +304,12 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
 
   //=== individua il misuratore di destinazione ===
   String str_topic;
-  for (int mis_idx=0; mis_idx < NR_MISURATORI; mis_idx++) {
+  for (int mis_idx = 0; mis_idx < NR_MISURATORI; mis_idx++) {
     str_topic = String(mqtt_topic_base) + String(mqtt_topic_misuratore[mis_idx]) + String(mqtt_topic_abilitato) ;
-   
+
     if (strcmp(str_topic.c_str(), topic) == 0) {
-      
-      misuratori[mis_idx].setEnabled((payload[0]=='0')?false:true);
+
+      misuratori[mis_idx].setEnabled((payload[0] == '0') ? false : true);
 
       Serial1.print("@@@@ PM Enable -> [");
       Serial1.println(misuratori[mis_idx].isEnabled());
@@ -319,13 +320,16 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
   }
 }
 
-union Pun {float f; uint32_t u;};
+union Pun {
+  float f;
+  uint32_t u;
+};
 float decodeFloat(const uint16_t reg0, uint16_t reg1)
 {
-    union Pun pun;
+  union Pun pun;
 
-    pun.u = ((uint32_t)reg0 << 16) | reg1;
-    return pun.f;
+  pun.u = ((uint32_t)reg0 << 16) | reg1;
+  return pun.f;
 }
 
 void preTransmission()
