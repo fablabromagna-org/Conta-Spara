@@ -97,7 +97,7 @@ PowerMeter misuratori[NR_MISURATORI];
 
 // Istanze degli oggetti ModbusMaster 
 #define MODBUS_NR_DEVICES NR_MISURATORI
-ModbusMaster mbus_node[MODBUS_NR_DEVICES];
+ModbusMaster mbus_node;
 
 
 /************************ MQTT topics *********************************/
@@ -132,6 +132,7 @@ char val[50];
 bool state = true;
 u32 polling_time_prev =0;
 int mis_idx = 0;
+int modbus_add[MODBUS_NR_DEVICES] = {11,12,13,14,21,22,23,31,32,33};
 
 
 void setup()
@@ -159,13 +160,6 @@ void setup()
   Serial.begin(2400, SERIAL_8N2);
  
   
-  // Callbacks allow us to configure the RS485 transceiver correctly
-  int modbus_add[MODBUS_NR_DEVICES] = {11,12,13,14,21,22,23,31,32,33};
-  for (int i = 0; i < MODBUS_NR_DEVICES; i++) {
-    mbus_node[i].begin(modbus_add[i], Serial);
-    mbus_node[i].preTransmission(preTransmission);
-    mbus_node[i].postTransmission(postTransmission);
-  }
 
 
   // @@@@ DEBUG : disabilito temporaneamente i misuratori assenti
@@ -185,7 +179,7 @@ void setup()
 
 void loop()
 {
-  uint8_t result;
+  uint8_t result, result2;
   int mb_status = 0;
   float volts; 
   float current;
@@ -207,16 +201,21 @@ void loop()
     if (misuratori[mis_idx].isEnabled()) {  
       Serial1.print("- Polling Misuratore:  ");
       Serial1.println(mis_idx);
+
+      mbus_node.begin(modbus_add[mis_idx], Serial);
+      mbus_node.preTransmission(preTransmission);
+      mbus_node.postTransmission(postTransmission);
+
      
       // Read 16 registers starting at 30001)
-      result = mbus_node[mis_idx].readInputRegisters(0x00, 16 );
-      if (result == mbus_node[mis_idx].ku8MBSuccess)
+      result = mbus_node.readInputRegisters(0x00, 16 );
+      if (result == mbus_node.ku8MBSuccess)
       {
         Serial1.println("prima lettura ok");
         misuratori[mis_idx].setStatus(STATUS_OK);
-        volts = decodeFloat(mbus_node[mis_idx].getResponseBuffer(0x00),  mbus_node[mis_idx].getResponseBuffer(0x01));
-        current = decodeFloat(mbus_node[mis_idx].getResponseBuffer(0x06),  mbus_node[mis_idx].getResponseBuffer(0x07));
-        active_power = decodeFloat(mbus_node[mis_idx].getResponseBuffer(0x0c),  mbus_node[mis_idx].getResponseBuffer(0x0d));
+        volts = decodeFloat(mbus_node.getResponseBuffer(0x00),  mbus_node.getResponseBuffer(0x01));
+        current = decodeFloat(mbus_node.getResponseBuffer(0x06),  mbus_node.getResponseBuffer(0x07));
+        active_power = decodeFloat(mbus_node.getResponseBuffer(0x0c),  mbus_node.getResponseBuffer(0x0d));
       }
       else {
         Serial1.println("prima lettura ERRORE");
@@ -233,15 +232,17 @@ void loop()
       Serial1.print("Potenza  W : ");
       Serial1.println(active_power);
       
-      /* // Read 20 registers starting at 30073)
-      result2 = mbus_node[mis_idx].readInputRegisters(0x48, 20 );
-      if (result2 == mbus_node[mis_idx].ku8MBSuccess)
+      // Read 2 registers starting at 30073)
+      result2 = mbus_node.readInputRegisters(0x48, 4 );
+      if (result2 == mbus_node.ku8MBSuccess)
       {
         Serial1.println("seconda lettura ok");
         misuratori[mis_idx].setStatus(STATUS_OK);
-        import_active_energy = decodeFloat(mbus_node[mis_idx].getResponseBuffer(0x00),  mbus_node[mis_idx].getResponseBuffer(0x01));
-        export_active_energy = decodeFloat(mbus_node[mis_idx].getResponseBuffer(0x02),  mbus_node[mis_idx].getResponseBuffer(0x03));
-        max_tot_spd = decodeFloat(mbus_node[mis_idx].getResponseBuffer(0x0e),  mbus_node[mis_idx].getResponseBuffer(0x0f));
+        import_active_energy = decodeFloat(mbus_node.getResponseBuffer(0x00),  mbus_node.getResponseBuffer(0x01));
+        export_active_energy = decodeFloat(mbus_node.getResponseBuffer(0x02),  mbus_node.getResponseBuffer(0x03));
+        //max_tot_spd = decodeFloat(mbus_node.getResponseBuffer(0x0e),  mbus_node.getResponseBuffer(0x0f));
+        // Per ora non lo leggo
+        max_tot_spd = 0;
       }
       else {
         Serial1.println("seconda lettura ERRORE");
@@ -257,7 +258,7 @@ void loop()
       Serial1.println(export_active_energy);
       Serial1.print("Max SPD  W : ");
       Serial1.println(max_tot_spd);
-      */
+      
       
       misuratori[mis_idx].setValues(volts, current, active_power, import_active_energy, export_active_energy, max_tot_spd);
       
