@@ -295,7 +295,9 @@ void loop()
   delay(100);
 }
 
-
+// -----------------------------------------------------------------
+// Connessione alla rete WiFi
+// -----------------------------------------------------------------
 void setup_wifi() {
   Serial1.println(); Serial1.println();
   Serial1.print("Connecting to ");
@@ -315,7 +317,9 @@ void setup_wifi() {
 }
 
 
-
+// -----------------------------------------------------------------
+// Connessione al broker mqtt
+// -----------------------------------------------------------------
 void mqtt_connect() {
   // Loop until we're reconnected
   while (!mqtt_client.connected()) {
@@ -345,6 +349,9 @@ void mqtt_connect() {
 }
 
 
+// -----------------------------------------------------------------
+// Funzione di callback chiamata quando ricevo dati dal broker mqtt
+// -----------------------------------------------------------------
 void mqtt_callback(char* topic, byte* payload, unsigned int length) {
   Serial1.print("Message arrived [");
   Serial1.print(topic);
@@ -368,6 +375,10 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
   }
 }
 
+
+// -------------------------------------------------------------
+// Funzioni di conversione per valori Modbus, da Word a Float
+// -------------------------------------------------------------
 union Pun {float f; uint32_t u;};
 float decodeFloat(const uint16_t reg0, uint16_t reg1)
 {
@@ -377,6 +388,10 @@ float decodeFloat(const uint16_t reg0, uint16_t reg1)
     return pun.f;
 }
 
+// -------------------------------------------------------------
+// Pilotaggio dei pin di controllo del convertitore RS485
+// Servono a commutare la linea 485 da trasmissione a ricezione
+// -------------------------------------------------------------
 void preTransmission()
 {
   digitalWrite(MAX485_RE_NEG, 1);
