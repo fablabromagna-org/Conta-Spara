@@ -263,21 +263,21 @@ void loop()
       misuratori[mis_idx].setValues(volts, current, active_power, import_active_energy, export_active_energy, max_tot_spd);
       
       // pubblica i valori via MQTT
-      char str_topic[128];
+//      char str_topic[128];
       // itoa((misuratori[mis_idx].getStatus() == STATUS_OK)?0:1,  val, 10 );
       // sprintf(str_topic, "%s%s%s", mqtt_topic_base, mqtt_topic_misuratore[mis_idx], mqtt_topic_stato);
       // mqtt_client.publish(str_topic , val);
 
       // TODO: trovare un modo migliore per costruire e json e convertire i float
       // TODO: aggiungere i nuovi valori letti .... (GPMISSI)
-      char val_json[128];
-      int status = (misuratori[mis_idx].getStatus() == STATUS_OK) ? 0 : 1;
-      sprintf(val_json, "{\"status\":%d \"tens\":%s,\"curr\":%s,\"apower\":%s}", 
-                            String(status).c_str(), 
-                            String(volts).c_str(), 
-                            String(current).c_str(), 
-                            String(active_power).c_str());
-      mqtt_client.publish(str_topic , val_json);
+//      char val_json[128];
+//      int status = (misuratori[mis_idx].getStatus() == STATUS_OK) ? 0 : 1;
+//      sprintf(val_json, "{\"status\":%d \"tens\":%s,\"curr\":%s,\"apower\":%s}", 
+//                            String(status).c_str(), 
+//                            String(volts).c_str(), 
+//                            String(current).c_str(), 
+//                            String(active_power).c_str());
+//      mqtt_client.publish(str_topic , val_json);
 
 
       
@@ -290,6 +290,30 @@ void loop()
     else {
       mis_idx = 0;
       polling_time_prev = millis();
+
+      // Alla fine del ciclo di lettura di tutti i misuratori pubblico il JSON su mqtt 
+      String json_out;
+      char str_topic[128];
+
+      json_out = "{[";
+
+      for (int i= 0; i < NR_MISURATORI; i++) {
+        if (i>0) json_out += ",";
+        
+        char json_meter[128];
+        int status = (misuratori[mis_idx].getStatus() == STATUS_OK) ? 0 : 1;
+        sprintf(json_meter, "{\"name\":%s, \"status\":%d, \"apower\":%s}", 
+                            mqtt_topic_misuratore[i],
+                            String(status).c_str(), 
+                            String(active_power).c_str());
+        json_out += json_meter;
+      }
+      json_out += "]}";
+
+      sprintf(str_topic, "%s%s", mqtt_topic_base, "/potenze_misuratori");
+      mqtt_client.publish(str_topic , json_out.c_str());
+
+      
     }
   }
 
