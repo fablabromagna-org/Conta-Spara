@@ -5,11 +5,14 @@ PowerMeter::PowerMeter(){
   enabled = true;
 }
 
-void PowerMeter::setValues(float volt, float curr, float apower)
+void PowerMeter::setValues(float volt, float curr, float apower, float kwhimp, float kwhexp, float maxspd)
 {
   voltage = volt;
   current = curr;
   activePower = apower;
+  importactiveenergy = kwhimp;
+  exportactiveenergy = kwhexp;
+  maxtotspd = maxspd;
 
 }
 
@@ -46,5 +49,20 @@ float PowerMeter::getCurrent()
 float PowerMeter::getActivePower()
 {
   return activePower;
+}
+
+float PowerMeter::getImportActiveEnergy()
+{
+  return importactiveenergy;
+}
+
+float PowerMeter::getExportActiveEnergy()
+{
+  return exportactiveenergy;
+}
+
+float PowerMeter::getMaxTotSpd()
+{
+  return maxtotspd;
 }
 

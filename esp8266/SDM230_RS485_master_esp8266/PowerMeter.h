@@ -15,10 +15,13 @@ class PowerMeter {
     float voltage;
     float current;
     float activePower;
+    float importactiveenergy;
+    float exportactiveenergy;
+    float maxtotspd;
 
   public:
     PowerMeter();
-    void setValues(float volt, float curr, float apower);
+    void setValues(float volt, float curr, float apower, float kwhimp, float kwhexp, float maxspd);
     void setEnabled(bool en);
     void setStatus(PmStatus  st);
     
@@ -28,6 +31,9 @@ class PowerMeter {
     float getVoltage();
     float getCurrent();
     float getActivePower();
+    float getImportActiveEnergy ();
+    float getExportActiveEnergy ();
+    float getMaxTotSpd ();
     
 };
 
