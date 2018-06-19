@@ -66,7 +66,7 @@
 
 const char* mqtt_clientID = "contaspara";
 
-#define NR_MISURATORI 7
+#define NR_MISURATORI 10
 
 PowerMeter misuratori[NR_MISURATORI];
 
@@ -90,12 +90,15 @@ ModbusMaster mbus_node[MODBUS_NR_DEVICES];
 /************************ MQTT topics *********************************/
 const char* mqtt_topic_base = "contaspara/misuratori";
 const char* mqtt_topic_misuratore[MODBUS_NR_DEVICES] = {
-  "/generale",
-  "/servizi",
   "/appartamento1",
+  "/CenTer",
+  "/scorta1",
+  "/appartamento4M",
   "/appartamento2",
+  "/scorta2",
   "/appartamento3",
-  "/appartamento4",
+  "/ServiziGen",
+  "/appartamento4A",
   "/appartamento5"
 };
 
@@ -136,8 +139,9 @@ void setup()
 
 
   // Callbacks allow us to configure the RS485 transceiver correctly
+  int modbus_add[MODBUS_NR_DEVICES] = {11,12,13,14,21,22,23,31,32,33};
   for (int i = 0; i < MODBUS_NR_DEVICES; i++) {
-    mbus_node[i].begin(i + 1, Serial);
+    mbus_node[i].begin(modbus_add[i], Serial);
     mbus_node[i].preTransmission(preTransmission);
     mbus_node[i].postTransmission(postTransmission);
   }
