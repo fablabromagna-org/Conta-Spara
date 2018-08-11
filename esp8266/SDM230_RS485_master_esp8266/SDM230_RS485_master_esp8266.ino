@@ -139,7 +139,7 @@ void setup()
 
 
   // Callbacks allow us to configure the RS485 transceiver correctly
-  int modbus_add[MODBUS_NR_DEVICES] = {11,12,13,14,21,22,23,31,32,33};
+  int modbus_add[MODBUS_NR_DEVICES] = {1,12,13,14,21,22,23,31,32,33};
   for (int i = 0; i < MODBUS_NR_DEVICES; i++) {
     mbus_node[i].begin(modbus_add[i], Serial);
     mbus_node[i].preTransmission(preTransmission);
@@ -155,7 +155,10 @@ void setup()
   misuratori[4].setEnabled(false);
   misuratori[5].setEnabled(false);
   misuratori[6].setEnabled(false);
-
+  misuratori[7].setEnabled(false);
+  misuratori[8].setEnabled(false);
+  misuratori[9].setEnabled(false);
+ 
 }
 
 
@@ -185,6 +188,7 @@ void loop()
       result = mbus_node[mis_idx].readInputRegisters(0x00, 16 );
       if (result == mbus_node[mis_idx].ku8MBSuccess)
       {
+        Serial1.print(" Polling OK:  ");  
         misuratori[mis_idx].setStatus(STATUS_OK);
         volts = decodeFloat(mbus_node[mis_idx].getResponseBuffer(0x00),  mbus_node[mis_idx].getResponseBuffer(0x01));
         current = decodeFloat(mbus_node[mis_idx].getResponseBuffer(0x06),  mbus_node[mis_idx].getResponseBuffer(0x07));
@@ -192,6 +196,7 @@ void loop()
 
       }
       else {
+        Serial1.print(" Polling ERROR:  ");
         misuratori[mis_idx].setStatus(STATUS_COM_ERROR);
         volts = 0;
         current = 0;
@@ -336,8 +341,10 @@ float decodeFloat(const uint16_t reg0, uint16_t reg1)
 // -------------------------------------------------------------
 void preTransmission()
 {
+ 
   digitalWrite(MAX485_RE_NEG, 1);
   digitalWrite(MAX485_DE, 1);
+   delay(10);
 }
 
 void postTransmission()
