@@ -12,13 +12,12 @@ class PowerMeter {
   private:
     bool enabled;
     PmStatus status;
-    float voltage;
-    float current;
-    float activePower;
-
+    float voltage, current, activePower, import_active_energy, export_active_energy, max_tot_spd;
+    
+    
   public:
     PowerMeter();
-    void setValues(float volt, float curr, float apower);
+    void setValues(float volt, float curr, float apower, float import_active_energy, float export_active_energy, float max_tot_spd);
     void setEnabled(bool en);
     void setStatus(PmStatus  st);
     
@@ -28,7 +27,14 @@ class PowerMeter {
     float getVoltage();
     float getCurrent();
     float getActivePower();
-    
+    float getImport_active_energy();
+    float getExport_active_energy();
+    float getMax_tot_spd();
+    bool getJsonMeasures(char *val_json);
+    float getImportActiveEnergy();
+    float getExportActiveEnergy();
+    float getMaxTotSpd();
+  
 };
 
 #endif
