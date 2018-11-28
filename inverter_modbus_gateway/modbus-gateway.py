@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 Modbus-Mqtt Gateway
 
@@ -49,6 +49,7 @@ import argparse
 import time
 import threading
 import signal, os
+import traceback
 
 # --------------------------------------------------------------------------- #
 # configure the service logging
@@ -56,8 +57,8 @@ import signal, os
 import logging
 logging.basicConfig()
 log = logging.getLogger()
-#log.setLevel(logging.DEBUG)
-log.setLevel(logging.CRITICAL)
+log.setLevel(logging.DEBUG)
+#log.setLevel(logging.CRITICAL)
 
 
 # --------------------------------------------------------------------------- #
@@ -71,11 +72,12 @@ MQTT_TOPIC_RT_HR = MQTT_TOPIC_BASE  + "/area_rt/hr"
 MODBUS_MODE_RTU = "RTU"
 MODBUS_MODE_TCP = "TCP"
 MODBUS_TCP_PORT = 5020
-MODBUS_RTU_DEVICE_CLIENT = "/dev/tnt1"  # legata a /dev/tnt0 per test senza device
-MODBUS_RTU_DEVICE_SERVER = "/dev/tnt2"
+MODBUS_RTU_DEVICE_CLIENT = "/dev/ttyUSB0"  # legata a /dev/tnt0 per test senza device
+MODBUS_RTU_DEVICE_SERVER = "/dev/ttyUSB1"
 
 MODBUS_CLIENT_ADDRESS = 1
-MODBUS_POLLING_TIME = 1
+MODBUS_POLLING_TIME = 300
+MODBUS_CLIENT_TIMEOUT = 4
 
 MODBUS_RTU_BAUD = 9600
 
@@ -156,12 +158,22 @@ class ModbusGatewayServer:
         # loop = LoopingCall(f=updating_writer, a=(context,))
         # loop.start(time, now=False)  # initially delay by time
 
+
         if mode == MODBUS_MODE_RTU:
+            print ("@@@@@@@ Starting ModBus Server  %s @ %d" % (rtuport, baud))
             StartSerialServer(self.serverContext, framer=ModbusRtuFramer, identity=self.modbusIdentity,
-                              port=rtuport, timeout=.005, baudrate=baud)
+                              port=rtuport, timeout=.05, baudrate=baud)
 
         elif modbus_server_mode == MODBUS_MODE_TCP:
             StartTcpServer(self.serverContext, identity=self.modbusIdentity, address=("", tcpport))
+
+
+    def stop (self):
+        from twisted.internet import reactor
+        print(">>>>>>>> Stopping MODBUS SERVER")
+ 
+        #reactor.stop()
+        reactor.callFromThread(reactor.stop)
 
 
 
@@ -225,7 +237,7 @@ class ModbusGatewayClient:
 
         self.clientAlive = True
         if mode == MODBUS_MODE_RTU:
-            self.client = ModbusClientRtu(method='rtu', port=rtuport, timeout=clienttimeout, baudrate=rtubaud)
+            self.client = ModbusClientRtu(method='rtu', port=rtuport, timeout=MODBUS_CLIENT_TIMEOUT, baudrate=rtubaud)
 
         elif mode == MODBUS_MODE_TCP:
             self.client = ModbusClientTcp(device_ip, port=tcp_port)
@@ -241,6 +253,7 @@ class ModbusGatewayClient:
 
     def polling(self):
 
+      try:
         #print("Client Polling:")
 
         # Read HR
@@ -248,23 +261,35 @@ class ModbusGatewayClient:
 
         # Leggo la potenza (W totali) al registro 0x28
         self.hr_power = self.client.read_holding_registers(unit=self.deviceId, address=0x28, count=2)
-        decoder = BinaryPayloadDecoder.fromRegisters(self.hr_power.registers, byteorder=Endian.Big, wordorder = Endian.Little)
-        self.powerTotal = decoder.decode_32bit_int()
+        if (self.hr_power.registers is not None):
+            decoder = BinaryPayloadDecoder.fromRegisters(self.hr_power.registers, byteorder=Endian.Big, wordorder = Endian.Little)
+            self.powerTotal = decoder.decode_32bit_int()
 
 
         # Leggo la corrente L2  al registro 0x1e
         self.hr_current = self.client.read_holding_registers(unit=self.deviceId, address=0x0e, count=1)
-        decoder = BinaryPayloadDecoder.fromRegisters(self.hr_current.registers, byteorder=Endian.Big)
-        self.currentL2 = decoder.decode_16bit_uint()
+        if (self.hr_current.registers is not None) :
+            decoder = BinaryPayloadDecoder.fromRegisters(self.hr_current.registers, byteorder=Endian.Big)
+            self.currentL2 = decoder.decode_16bit_uint()
 
         print ("Power: %4d  - Ampere: %4d" % (self.powerTotal, self.currentL2))
-
+      
+      except  Exception as e:
+        print ("MODBUS Read error!")
+        
     def get_rtdata(self):
         return self.powerTotal, self.currentL2
 
     def get_rawdata(self):
         return self.hr_power, self.hr_current
 
+
+    def stop (self):
+        from twisted.internet import reactor
+        print(">>>>>>>> Stopping MODBUS CLIENT")
+ 
+        #reactor.stop()
+        reactor.callFromThread(reactor.stop)
 
 
 
@@ -319,16 +344,31 @@ class MqttModbusClient:
                 values[i] = int.from_bytes(message.payload[i:i+2], byteorder='big', signed=False)
             context[slave_id].setValues(register, address, values)
 
+    def stop (self):
+        from twisted.internet import reactor
+        print(">>>>>>>> Stopping MODBUS CLIENT")
+ 
+        #reactor.stop()
+        reactor.callFromThread(reactor.stop)
+
 
 
 
 def handler(signum, frame):
+    import sys, os
     print ('Signal handler called with signal', signum)
 
+
+    os.kill(os.getpid(), signal.SIGABRT)
+
     global modbus_client
+    global modbus_server
+    #global mqttclient
     modbus_client.clientAlive = False
-
-
+    modbus_client.stop()
+    modbus_server.stop()
+    #mqttclient.stop()
+    
 
 
 def updating_writer(a):
@@ -345,13 +385,12 @@ def updating_writer(a):
     register = 3
     slave_id = 0x00
 
-    data_raw_power, data_raw_current = modbus_client.get_rawdata()
+    #data_raw_power, data_raw_current = modbus_client.get_rawdata()
+    #values = data_raw_power.registers
+    #context[slave_id].setValues(register, 0x28, values)
 
-    values = data_raw_power.registers
-    context[slave_id].setValues(register, 0x28, values)
-
-    values = data_raw_current.registers
-    context[slave_id].setValues(register, 0x0e, values)
+    #values = data_raw_current.registers
+    #context[slave_id].setValues(register, 0x0e, values)
 
 
 
@@ -456,7 +495,6 @@ if __name__ == "__main__":
     # -------------------------------------
     print("Starting modbus client.")
     modbus_client = ModbusGatewayClient();
-    #modbus_client.initRegistersArea( MODBUS_IR_SIZE, MODBUS_HR_SIZE)
     modbus_client.run(mode=modbus_client_mode, pollingtime=MODBUS_POLLING_TIME, device_id=MODBUS_CLIENT_ADDRESS,
                       rtubaud=MODBUS_RTU_BAUD , rtuport = MODBUS_RTU_DEVICE_CLIENT )
     print("Done.")
@@ -465,7 +503,7 @@ if __name__ == "__main__":
 
 
     #  TODO: if GatewaySwitch is ON copy INPUT to HR
-    time_update = 1  # nr seconds delay
+    time_update = 300  # nr seconds delay
     loop = LoopingCall(f=updating_writer, a=(modbus_context,))
     loop.start(time_update, now=False)  # initially delay by time
 
